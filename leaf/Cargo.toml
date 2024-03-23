@@ -249,10 +249,13 @@ notify = { version = "6", optional = true }
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.48.0", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis"] }
+
 # TUN
-[target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux"))'.dependencies]
-tun = { git = "https://github.com/eycorsican/rust-tun.git", branch = "fork", features = ["async"], optional = true }
-netstack-lwip = { git = "https://github.com/eycorsican/netstack-lwip.git", rev = "b1f8596", optional = true }
+[target.'cfg(any(target_os = "ios", target_os = "android", target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
+tun = { git = "https://github.com/lemos1235/rust-tun.git", features = ["async"], optional = true }
+netstack-lwip = { git = "https://github.com/lemos1235/netstack-lwip.git", branch = "master", optional = true }
 
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 pnet_datalink = { version = "0.34", package = "pnet_datalink", optional = true }

@@ -295,15 +295,15 @@ lazy_static! {
     };
 
     pub static ref DEFAULT_TUN_IPV4_ADDR: String = {
-        get_env_var_or("DEFAULT_TUN_IPV4_ADDR", "240.255.0.2".to_string())
+        get_env_var_or("DEFAULT_TUN_IPV4_ADDR", "198.19.0.1".to_string())
     };
 
     pub static ref DEFAULT_TUN_IPV4_GW: String = {
-        get_env_var_or("DEFAULT_TUN_IPV4_GW", "240.255.0.1".to_string())
+        get_env_var_or("DEFAULT_TUN_IPV4_GW", "0.0.0.0".to_string())
     };
 
     pub static ref DEFAULT_TUN_IPV4_MASK: String = {
-        get_env_var_or("DEFAULT_TUN_IPV4_MASK", "255.255.255.0".to_string())
+        get_env_var_or("DEFAULT_TUN_IPV4_MASK", "255.255.255.252".to_string())
     };
 
     pub static ref DEFAULT_TUN_IPV6_ADDR: String = {

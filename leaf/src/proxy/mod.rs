@@ -1,4 +1,3 @@
-use std::ffi::CString;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::sync::Arc;
@@ -18,7 +17,22 @@ use tracing::debug;
 #[cfg(unix)]
 use std::os::unix::io::{AsFd, AsRawFd};
 #[cfg(windows)]
-use std::os::windows::io::{AsRawSocket, AsSocket};
+use {
+    std::os::windows::io::{AsSocket, AsRawSocket},
+    windows::{
+        core::{HSTRING},
+        Win32::{
+            Networking::WinSock::{
+                IP_UNICAST_IF, IPPROTO_IP, IPPROTO_IPV6,
+                IPV6_UNICAST_IF, setsockopt, SOCKET,
+            },
+            NetworkManagement::{
+                IpHelper::{ConvertInterfaceAliasToLuid, ConvertInterfaceLuidToIndex},
+                Ndis::NET_LUID_LH,
+            },
+        },
+    },
+};
 #[cfg(target_os = "android")]
 use {
     std::os::unix::io::RawFd, tokio::io::AsyncReadExt, tokio::io::AsyncWriteExt,
@@ -74,7 +88,8 @@ pub mod tryall;
         target_os = "ios",
         target_os = "android",
         target_os = "macos",
-        target_os = "linux"
+        target_os = "linux",
+        target_os = "windows"
     )
 ))]
 pub mod tun;
@@ -163,7 +178,12 @@ trait BindSocket: AsFd {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(target_os = "windows")]
+trait BindSocket: AsRawSocket {
+    fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 trait BindSocket {
     fn bind(&self, bind_addr: &SocketAddr) -> io::Result<()>;
 }
@@ -266,7 +286,42 @@ async fn bind_socket<T: BindSocket>(socket: &T, indicator: &SocketAddr) -> io::R
                     debug!("socket bind {}", iface);
                     return Ok(());
                 }
-                #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+                #[cfg(target_os = "windows")]
+                {
+                    unsafe {
+                        let mut if_index = 0;
+                        let mut if_luid = NET_LUID_LH::default();
+                        let if_alias = HSTRING::from(iface.as_str());
+                        let _ = ConvertInterfaceAliasToLuid(&if_alias, &mut if_luid);
+                        let _ = ConvertInterfaceLuidToIndex(&if_luid, &mut if_index);
+                        if if_index == 0 {
+                            last_err = Some(io::Error::last_os_error());
+                            continue;
+                        }
+
+                        let ret = match indicator {
+                            SocketAddr::V4(..) => setsockopt(
+                                SOCKET(socket.as_raw_socket() as usize),
+                                IPPROTO_IP.0,
+                                IP_UNICAST_IF,
+                                Some(&if_index.to_be_bytes()),
+                            ),
+                            SocketAddr::V6(..) => setsockopt(
+                                SOCKET(socket.as_raw_socket() as usize),
+                                IPPROTO_IPV6.0,
+                                IPV6_UNICAST_IF,
+                                Some(&if_index.to_be_bytes()),
+                            ),
+                        };
+                        if ret == -1 {
+                            last_err = Some(io::Error::last_os_error());
+                            continue;
+                        }
+                    }
+                    debug!("socket bind {}", iface);
+                    return Ok(());
+                }
+                #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
                 {
                     return Err(io::Error::new(
                         io::ErrorKind::Other,
